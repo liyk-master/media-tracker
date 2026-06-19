@@ -46,3 +46,7 @@ web/src/
 - Backend caps `page_size` at 100 in `media.go`.
 - Frontend `page_size=100`, epg list paginated at 50 per page.
 - Export logging runs in a goroutine after response is sent.
+
+## 语言规范
+- 所有对话和文档都使用中文
+- 文档使用 markdown 格式

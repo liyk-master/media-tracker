@@ -103,7 +103,8 @@ func UpdateMedia(id uint, updates map[string]interface{}) error {
 
 type MediaGroupRow struct {
 	model.Media
-	Count int `json:"count"`
+	Count     int   `json:"count"`
+	TotalSize int64 `json:"total_size"`
 }
 
 func ListMediaGrouped(page, pageSize int, q, mediaType string, year int, tmdbID int) ([]MediaGroupRow, int64, error) {
@@ -137,11 +138,12 @@ func ListMediaGrouped(page, pageSize int, q, mediaType string, year int, tmdbID 
 	}
 
 	type groupInfo struct {
-		MaxID uint `gorm:"column:max_id"`
-		Cnt   int  `gorm:"column:cnt"`
+		MaxID     uint  `gorm:"column:max_id"`
+		Cnt       int   `gorm:"column:cnt"`
+		TotalSize int64 `gorm:"column:total_size"`
 	}
 	offset := (page - 1) * pageSize
-	groupSQL := "SELECT MAX(id) as max_id, COUNT(*) as cnt FROM media WHERE " + where + " GROUP BY tmdb_id ORDER BY max_id DESC LIMIT ? OFFSET ?"
+	groupSQL := "SELECT MAX(id) as max_id, COUNT(*) as cnt, SUM(file_size) as total_size FROM media WHERE " + where + " GROUP BY tmdb_id ORDER BY max_id DESC LIMIT ? OFFSET ?"
 	groupArgs := append(args, pageSize, offset)
 	var groups []groupInfo
 	if err := db.Raw(groupSQL, groupArgs...).Scan(&groups).Error; err != nil {
@@ -150,9 +152,11 @@ func ListMediaGrouped(page, pageSize int, q, mediaType string, year int, tmdbID 
 
 	ids := make([]uint, len(groups))
 	countMap := make(map[uint]int)
+	sizeMap := make(map[uint]int64)
 	for i, g := range groups {
 		ids[i] = g.MaxID
 		countMap[g.MaxID] = g.Cnt
+		sizeMap[g.MaxID] = g.TotalSize
 	}
 
 	var items []model.Media
@@ -173,7 +177,7 @@ func ListMediaGrouped(page, pageSize int, q, mediaType string, year int, tmdbID 
 		if !ok {
 			continue
 		}
-		result[i] = MediaGroupRow{Media: item, Count: g.Cnt}
+		result[i] = MediaGroupRow{Media: item, Count: g.Cnt, TotalSize: g.TotalSize}
 	}
 
 	return result, total, nil
@@ -182,6 +186,7 @@ func ListMediaGrouped(page, pageSize int, q, mediaType string, year int, tmdbID 
 type UserMediaStats struct {
 	TotalFiles int64
 	TotalShows int64
+	TotalSize  int64
 	ByType     map[string]int64
 }
 
@@ -198,6 +203,14 @@ func GetUserMediaStats(userID uint) (*UserMediaStats, error) {
 		Where("user_id = ? AND tmdb_id > 0", userID).
 		Distinct("tmdb_id").
 		Count(&totalShows).Error; err != nil {
+		return nil, err
+	}
+
+	var totalSize int64
+	if err := config.Conf.DB.Model(&model.Media{}).
+		Where("user_id = ?", userID).
+		Select("COALESCE(SUM(file_size), 0)").
+		Scan(&totalSize).Error; err != nil {
 		return nil, err
 	}
 
@@ -222,6 +235,7 @@ func GetUserMediaStats(userID uint) (*UserMediaStats, error) {
 	return &UserMediaStats{
 		TotalFiles: totalFiles,
 		TotalShows: totalShows,
+		TotalSize:  totalSize,
 		ByType:     byType,
 	}, nil
 }

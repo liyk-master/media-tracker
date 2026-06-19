@@ -13,6 +13,7 @@ export interface MediaItem {
   json_data: Record<string, any>
   created_at: string
   count?: number
+  total_size?: number
 }
 
 export interface SubmitResult {
@@ -164,7 +165,7 @@ export const api = {
   },
 
   getUserStats() {
-    return request<{ total_files: number; total_shows: number; by_type: Record<string, number> }>('/api/user/stats')
+    return request<{ total_files: number; total_shows: number; total_size: number; by_type: Record<string, number> }>('/api/user/stats')
   },
 
   resetAPIKey() {

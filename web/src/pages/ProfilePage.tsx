@@ -14,6 +14,7 @@ interface Profile {
 interface Stats {
   total_files: number
   total_shows: number
+  total_size: number
   by_type: Record<string, number>
 }
 
@@ -61,6 +62,18 @@ export default function ProfilePage() {
     } finally {
       setResetting(false)
     }
+  }
+
+  function formatBytes(bytes: number): string {
+    if (!bytes) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    let i = 0
+    let size = bytes
+    while (size >= 1024 && i < units.length - 1) {
+      size /= 1024
+      i++
+    }
+    return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i]
   }
 
   if (loading) {
@@ -158,23 +171,45 @@ export default function ProfilePage() {
             <div className="px-6 py-5">
               {stats && (
                 <>
-                  <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '28px', fontFamily: "'Archivo Black', sans-serif", color: 'var(--accent-amber)', lineHeight: 1.1 }}>
-                        {stats.total_files}
+                  <div style={{
+                    display: 'flex',
+                    marginBottom: '28px',
+                  }}>
+                    {[
+                      { value: stats.total_files, label: '文件总数', color: 'var(--accent-amber)' },
+                      { value: stats.total_shows, label: '剧集/电影', color: 'var(--accent-teal)' },
+                      { value: formatBytes(stats.total_size), label: '上传总大小', color: 'var(--accent-amber)' },
+                    ].map((item, i) => (
+                      <div key={i} style={{
+                        flex: 1,
+                        textAlign: 'center',
+                        padding: '4px 12px',
+                        borderRight: i < 2 ? '1px solid var(--border)' : 'none',
+                      }}>
+                        <div style={{
+                          fontSize: '28px',
+                          fontFamily: "'Archivo Black', sans-serif",
+                          color: item.color,
+                          lineHeight: 1.15,
+                          letterSpacing: '-0.02em',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {item.value}
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: 'var(--text-dim)',
+                          marginTop: '6px',
+                          fontFamily: "'DM Sans', sans-serif",
+                          letterSpacing: '0.04em',
+                          textTransform: 'uppercase',
+                        }}>
+                          {item.label}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        文件总数
-                      </div>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '28px', fontFamily: "'Archivo Black', sans-serif", color: 'var(--accent-teal)', lineHeight: 1.1 }}>
-                        {stats.total_shows}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        剧集/电影
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
                   {Object.keys(stats.by_type).length > 0 && (

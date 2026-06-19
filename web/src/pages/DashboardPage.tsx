@@ -251,6 +251,18 @@ export default function DashboardPage() {
     setEditingTMDB(null)
   }
 
+  function formatBytes(bytes: number): string {
+    if (!bytes) return ''
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    let i = 0
+    let size = bytes
+    while (size >= 1024 && i < units.length - 1) {
+      size /= 1024
+      i++
+    }
+    return size.toFixed(i > 0 ? 1 : 0) + ' ' + units[i]
+  }
+
   function truncateText(s: string, max: number): string {
     if (s.length <= max) return s
     return s.slice(0, max) + '…'
@@ -704,6 +716,7 @@ export default function DashboardPage() {
                         }}>
                           <span style={{ opacity: 0.5 }}>⊞</span>
                           {m.count} 个文件
+                          {m.total_size ? <><span style={{ opacity: 0.3 }}>·</span> {formatBytes(m.total_size)}</> : null}
                         </div>
                       )}
                     </div>

@@ -55,6 +55,7 @@ func (h *UserHandler) GetStats(c *gin.Context) {
 	response.Success(c, gin.H{
 		"total_files": stats.TotalFiles,
 		"total_shows": stats.TotalShows,
+		"total_size":  stats.TotalSize,
 		"by_type":     stats.ByType,
 	})
 }
