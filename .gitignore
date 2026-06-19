@@ -9,6 +9,7 @@ cmd/server/server.exe
 *.out
 go.work
 go.work.sum
+media-tracker
 
 # Node / Frontend
 web/node_modules/
