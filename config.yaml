@@ -1,0 +1,33 @@
+server:
+  port: 8082
+  mode: debug
+
+database:
+  host: 192.168.2.148
+  port: 3306
+  user: root
+  password: jdmliyk1
+  dbname: media_tracker
+
+jwt:
+  secret: "jdmliyk1"
+  expire_hours: 72
+
+identifier:
+  api_url: "http://192.168.2.148:8083/api/manual/validate"
+  auth_url: "http://192.168.2.148:8083/api/auth/login"
+  username: "admin"
+  password: "jdmliyk1"
+  timeout_seconds: 30
+  concurrency: 5
+
+ws:
+  max_connections: 1000
+
+invitation:
+  required: true
+
+tmdb:
+  api_key: "f321777b05714595e09a5de9db77fdec"
+  proxy_url: ""
+  poster_base: ""

@@ -1,0 +1,319 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context'
+import { api } from '../api'
+
+interface Profile {
+  id: number
+  username: string
+  role: string
+  can_edit_tmdb: boolean
+  created_at: string
+}
+
+interface Stats {
+  total_files: number
+  total_shows: number
+  by_type: Record<string, number>
+}
+
+export default function ProfilePage() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      api.getUserProfile(),
+      api.getUserStats(),
+      api.getAPIKey(),
+    ]).then(([p, s, k]) => {
+      setProfile(p)
+      setStats(s)
+      setApiKey(k.api_key)
+    }).catch(() => {
+    }).finally(() => setLoading(false))
+  }, [])
+
+  function handleCopy() {
+    navigator.clipboard.writeText(apiKey).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  async function handleResetKey() {
+    setResetting(true)
+    try {
+      const res = await api.resetAPIKey()
+      setApiKey(res.api_key)
+      setShowKey(true)
+      setConfirmReset(false)
+    } catch {
+    } finally {
+      setResetting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>加载中...</div>
+      </div>
+    )
+  }
+
+  const maxTypeCount = stats ? Math.max(...Object.values(stats.by_type), 1) : 1
+
+  return (
+    <div className="min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+      <header style={{
+        borderBottom: '1px solid var(--border)',
+        background: 'var(--bg-surface)',
+        position: 'sticky', top: 0, zIndex: 100,
+      }}>
+        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '18px', letterSpacing: '-0.02em', color: 'var(--accent-amber)' }}>
+              个人中心
+            </span>
+            <button className="btn-ghost" onClick={() => navigate('/')}
+              style={{ fontSize: '13px', padding: '5px 12px' }}>
+              ← 返回
+            </button>
+          </div>
+          <button onClick={logout} className="btn-ghost">退出登录</button>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {/* Profile Card */}
+          <section className="card animate-in stagger-1">
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '15px', color: 'var(--text-primary)' }}>
+                个人信息
+              </h3>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              {profile && (
+                <>
+                  <div>
+                    <div style={{ fontSize: '11px', fontFamily: "'Archivo Black', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      用户名
+                    </div>
+                    <div style={{ fontSize: '15px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                      {profile.username}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontFamily: "'Archivo Black', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      角色
+                    </div>
+                    <div>
+                      <span className="media-type-badge" style={{
+                        color: profile.role === 'admin' ? 'var(--accent-amber)' : 'var(--accent-teal)',
+                        background: profile.role === 'admin' ? 'var(--accent-amber-glow)' : 'var(--accent-teal-dim)',
+                      }}>
+                        {profile.role === 'admin' ? 'ADMIN' : 'USER'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontFamily: "'Archivo Black', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      TMDB 编辑权限
+                    </div>
+                    <div style={{ fontSize: '14px', color: profile.can_edit_tmdb ? 'var(--success)' : 'var(--text-dim)' }}>
+                      {profile.can_edit_tmdb ? '已开启' : '未开启'}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', fontFamily: "'Archivo Black', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      注册时间
+                    </div>
+                    <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                      {new Date(profile.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Stats Card */}
+          <section className="card animate-in stagger-2">
+            <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '15px', color: 'var(--text-primary)' }}>
+                上传统计
+              </h3>
+            </div>
+            <div className="px-6 py-5">
+              {stats && (
+                <>
+                  <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '28px', fontFamily: "'Archivo Black', sans-serif", color: 'var(--accent-amber)', lineHeight: 1.1 }}>
+                        {stats.total_files}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        文件总数
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '28px', fontFamily: "'Archivo Black', sans-serif", color: 'var(--accent-teal)', lineHeight: 1.1 }}>
+                        {stats.total_shows}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        剧集/电影
+                      </div>
+                    </div>
+                  </div>
+
+                  {Object.keys(stats.by_type).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '11px', fontFamily: "'Archivo Black', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '2px' }}>
+                        类型分布
+                      </div>
+                      {Object.entries(stats.by_type).map(([type, count]) => (
+                        <div key={type}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <span className="media-type-badge" style={{
+                              color: type === 'movie' ? 'var(--accent-amber)' : 'var(--accent-teal)',
+                              background: type === 'movie' ? 'var(--accent-amber-glow)' : 'var(--accent-teal-dim)',
+                              fontSize: '10px',
+                            }}>
+                              {type === 'movie' ? 'MOVIE' : type === 'tv' ? 'TV' : type.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                              {count}
+                            </span>
+                          </div>
+                          <div style={{
+                            height: '6px',
+                            background: 'var(--bg-elevated)',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${(count / maxTypeCount) * 100}%`,
+                              background: type === 'movie' ? 'var(--accent-amber)' : 'var(--accent-teal)',
+                              borderRadius: '3px',
+                              transition: 'width 0.5s ease',
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* API Key Card */}
+        <section className="card animate-in stagger-3" style={{ marginTop: '16px' }}>
+          <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '15px', color: 'var(--text-primary)' }}>
+              API Key
+            </h3>
+          </div>
+          <div className="px-6 py-5">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                flex: 1,
+                padding: '10px 14px',
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                fontFamily: 'monospace',
+                fontSize: '13px',
+                color: 'var(--text-primary)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                userSelect: showKey ? 'text' : 'none',
+                filter: showKey ? 'none' : 'blur(4px)',
+                transition: 'filter 0.2s ease',
+              }}>
+                {apiKey}
+              </div>
+              <button
+                className="btn-ghost"
+                onClick={() => setShowKey(!showKey)}
+                style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '8px 14px' }}
+              >
+                {showKey ? '隐藏' : '显示'}
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={handleCopy}
+                disabled={!showKey}
+                style={{ whiteSpace: 'nowrap', fontSize: '12px', padding: '8px 14px' }}
+              >
+                {copied ? '已复制' : '复制'}
+              </button>
+            </div>
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                className="btn-ghost"
+                onClick={() => setConfirmReset(true)}
+                style={{
+                  whiteSpace: 'nowrap',
+                  fontSize: '12px',
+                  padding: '8px 14px',
+                  color: 'var(--error)',
+                  borderColor: 'rgba(229, 72, 77, 0.3)',
+                }}
+              >
+                重置 API Key
+              </button>
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+                重置后旧 Key 将立即失效
+              </span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Reset Confirmation Modal */}
+      {confirmReset && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 200,
+        }} onClick={() => setConfirmReset(false)}>
+          <div className="card" style={{ padding: '24px', maxWidth: '400px', width: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '16px', color: 'var(--text-primary)', marginBottom: '12px' }}>
+              确认重置 API Key
+            </h3>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
+              重置后当前 API Key 将立即失效，任何使用旧 Key 的应用都将无法继续访问。此操作不可撤销。
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button className="btn-ghost" onClick={() => setConfirmReset(false)}>取消</button>
+              <button
+                className="btn-primary"
+                onClick={handleResetKey}
+                disabled={resetting}
+                style={{ background: 'var(--error)', padding: '8px 20px', fontSize: '13px' }}
+              >
+                {resetting ? '重置中...' : '确认重置'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
