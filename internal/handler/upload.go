@@ -77,14 +77,15 @@ func (h *UploadHandler) UpdateTMDB(c *gin.Context) {
 	}
 
 	var req struct {
-		TMDBID int `json:"tmdb_id"`
+		TMDBID    int    `json:"tmdb_id"`
+		MediaType string `json:"media_type"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, "参数错误: "+err.Error())
 		return
 	}
 
-	updated, err := h.uploadService.UpdateTMDBID(uint(id), req.TMDBID)
+	updated, err := h.uploadService.UpdateTMDBID(uint(id), req.TMDBID, req.MediaType)
 	if err != nil {
 		response.Error(c, err.Error())
 		return

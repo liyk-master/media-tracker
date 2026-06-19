@@ -326,7 +326,7 @@ func (s *UploadService) Upload(userID uint, req *UploadRequest) (*UploadResult, 
 		}, nil
 	}
 
-	result, err := s.identifier.Identify(req.Name)
+	result, err := s.identifier.Identify(req.Name, "")
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func (s *UploadService) Upload(userID uint, req *UploadRequest) (*UploadResult, 
 	}, nil
 }
 
-func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int) (*model.Media, error) {
+func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType string) (*model.Media, error) {
 	media, err := repository.GetMediaByID(mediaID)
 	if err != nil {
 		return nil, fmt.Errorf("查询媒体记录失败: %w", err)
@@ -403,8 +403,8 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int) (*model.Media,
 	if media == nil {
 		return nil, fmt.Errorf("媒体记录不存在")
 	}
-	fakeName := fmt.Sprintf("manual_{tmdbid=%d}.mp4", newTmdbID)
-	result, err := s.identifier.Identify(fakeName)
+	fakeName := fmt.Sprintf("manual_{tmdbid=%d}_{%s}.mp4", newTmdbID, mediaType)
+	result, err := s.identifier.Identify(fakeName, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("重新识别失败: %w", err)
 	}
@@ -470,7 +470,10 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int) (*model.Media,
 	jsonData := model.JSON(raw)
 
 	newMediaType := media.MediaType
-	if result.MediaType != "" {
+	switch {
+	case mediaType != "":
+		newMediaType = mediaType
+	case result.MediaType != "":
 		newMediaType = result.MediaType
 	}
 

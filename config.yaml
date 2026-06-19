@@ -14,8 +14,8 @@ jwt:
   expire_hours: 72
 
 identifier:
-  api_url: "http://192.168.2.148:8083/api/manual/validate"
-  auth_url: "http://192.168.2.148:8083/api/auth/login"
+  api_url: "http://127.0.0.1:8081/api/manual/validate"
+  auth_url: "http://127.0.0.1:8081/api/auth/login"
   username: "admin"
   password: "jdmliyk1"
   timeout_seconds: 30

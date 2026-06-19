@@ -141,10 +141,17 @@ export const api = {
     URL.revokeObjectURL(url)
   },
 
-  updateMediaTMDB(id: number, tmdbId: number) {
+  updateMediaTMDB(id: number, tmdbId: number, mediaType?: string) {
     return request<MediaItem>(`/api/media/${id}/tmdb`, {
       method: 'PUT',
-      body: JSON.stringify({ tmdb_id: tmdbId }),
+      body: JSON.stringify({ tmdb_id: tmdbId, media_type: mediaType }),
+    })
+  },
+
+  validateManual(filePath: string, mediaType: string) {
+    return request<any>('/api/manual/validate', {
+      method: 'POST',
+      body: JSON.stringify({ file_path: filePath, media_type: mediaType }),
     })
   },
 

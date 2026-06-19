@@ -16,7 +16,8 @@ import (
 )
 
 type IdentifyRequest struct {
-	FilePath string `json:"file_path"`
+	FilePath  string `json:"file_path"`
+	MediaType string `json:"media_type,omitempty"`
 }
 
 type IdentifyResponse struct {
@@ -141,15 +142,19 @@ func (s *IdentifierService) reLogin() error {
 	return nil
 }
 
-func (s *IdentifierService) Identify(filePath string) (*IdentifyResponse, error) {
-	log.Printf("[identifier] === 开始识别 %q", shortName(filePath))
+func (s *IdentifierService) Identify(filePath string, mediaType string) (*IdentifyResponse, error) {
+	log.Printf("[identifier] === 开始识别 %q (media_type=%q)", shortName(filePath), mediaType)
 	startAll := time.Now()
 
 	if err := s.ensureLogin(); err != nil {
 		return nil, fmt.Errorf("identifier auth: %w", err)
 	}
 
-	body, err := json.Marshal(IdentifyRequest{FilePath: filePath})
+	identReq := IdentifyRequest{FilePath: filePath}
+	if mediaType != "" {
+		identReq.MediaType = mediaType
+	}
+	body, err := json.Marshal(identReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}

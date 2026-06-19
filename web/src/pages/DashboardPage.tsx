@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const [editingTMDB, setEditingTMDB] = useState<number | null>(null)
   const [editTMDBValue, setEditTMDBValue] = useState('')
   const [editTMDBLoading, setEditTMDBLoading] = useState(false)
+  const [editMediaType, setEditMediaType] = useState('')
 
   const loadMedia = useCallback(async (p: number) => {
     setLoading(true)
@@ -229,6 +230,7 @@ export default function DashboardPage() {
   function handleEditTMDB(media: MediaItem) {
     setEditingTMDB(media.id)
     setEditTMDBValue(String(media.tmdb_id || ''))
+    setEditMediaType(media.media_type || 'tv')
   }
 
   async function handleSaveTMDB() {
@@ -237,7 +239,7 @@ export default function DashboardPage() {
     if (isNaN(tmdbId)) return
     setEditTMDBLoading(true)
     try {
-      await api.updateMediaTMDB(editingTMDB, tmdbId)
+      await api.updateMediaTMDB(editingTMDB, tmdbId, editMediaType)
       setEditingTMDB(null)
       loadMedia(page)
     } finally {
@@ -762,9 +764,18 @@ export default function DashboardPage() {
               onChange={(e) => setEditTMDBValue(e.target.value)}
               placeholder="输入 TMDB ID"
               autoFocus
-              style={{ width: '100%', fontSize: '13px', padding: '8px 12px', marginBottom: '16px' }}
+              style={{ width: '100%', fontSize: '13px', padding: '8px 12px', marginBottom: '12px' }}
               onKeyDown={(e) => e.key === 'Enter' && !editTMDBLoading && handleSaveTMDB()}
             />
+            <select
+              className="input-base"
+              value={editMediaType}
+              onChange={(e) => setEditMediaType(e.target.value)}
+              style={{ width: '100%', fontSize: '13px', padding: '8px 12px', marginBottom: '16px' }}
+            >
+              <option value="tv">剧集</option>
+              <option value="movie">电影</option>
+            </select>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button
                 className="btn-ghost"
