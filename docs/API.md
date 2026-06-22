@@ -152,6 +152,7 @@
 | `tmdb_id` | int | - | 过滤指定 TMDB ID |
 | `year` | int | - | 按年份过滤 (JSON_EXTRACT `$.year`) |
 | `group_by` | string | - | 设为 `tmdb` 则按 tmdb_id 分组 |
+| `page_size` | int | 20 | 分组模式默认 100，epg 列表默认 50 |
 
 **普通模式**（不传 `group_by`）**Response** `data`:
 ```json
@@ -189,13 +190,14 @@
       "sha256": "...",
       "file_name": "...",
       "count": 3,
+      "total_size": 12345678,
       // ... 其他 Media 字段（分组内最新一条）
     }
   ]
 }
 ```
 
-> `count` 表示该 tmdb_id 分组下的文件总数。
+> `count` 表示该 tmdb_id 分组下的文件总数，`total_size` 为该分组文件总大小。
 
 #### `GET /api/media/:id` — 查询单条
 
@@ -214,9 +216,15 @@
 **Request**:
 ```json
 {
-  "tmdb_id": 12345
+  "tmdb_id": 12345,
+  "media_type": "movie"
 }
 ```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `tmdb_id` | int | 是 | 新的 TMDB ID |
+| `media_type` | string | 否 | `movie` / `tv`，不传则由识别 API 决定 |
 
 **Response** `data`: 更新后的 Media 对象。
 
@@ -236,7 +244,30 @@
 
 ---
 
-### 5. 数据导出
+### 5. 手动识别
+
+#### `POST /api/manual/validate` — 手动识别文件
+
+需要认证。
+
+**Request**:
+```json
+{
+  "file_path": "/影视/电影/example.mkv",
+  "media_type": "tv"
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file_path` | string | 是 | 文件路径 |
+| `media_type` | string | 否 | `movie` / `tv`，不传则由 API 自动判断 |
+
+**Response** `data`: 完整识别结果（`IdentifyResponse`），包含 `tmdb_info`、`media_type`、`suggested_name` 等。
+
+---
+
+### 6. 数据导出
 
 #### `GET /api/media/export` — 导出媒体列表
 
@@ -271,7 +302,7 @@
 
 ---
 
-### 6. 用户
+### 7. 用户
 
 #### `GET /api/user/apikey` — 获取当前用户的 API Key
 
@@ -282,9 +313,46 @@
 }
 ```
 
+#### `POST /api/user/apikey/reset` — 重置 API Key
+
+**Response** `data`:
+```json
+{
+  "api_key": "new_key..."
+}
+```
+
+#### `GET /api/user/profile` — 获取当前用户信息
+
+**Response** `data`:
+```json
+{
+  "id": 1,
+  "username": "user1",
+  "role": "user",
+  "can_edit_tmdb": false,
+  "created_at": "2025-01-01T00:00:00Z"
+}
+```
+
+#### `GET /api/user/stats` — 获取当前用户媒体统计
+
+**Response** `data`:
+```json
+{
+  "total_files": 100,
+  "total_shows": 50,
+  "total_size": 1234567890,
+  "by_type": {
+    "movie": 60,
+    "tv": 40
+  }
+}
+```
+
 ---
 
-### 7. 管理后台（Admin Only）
+### 8. 管理后台（Admin Only）
 
 需要 `admin` 角色。
 
@@ -406,7 +474,7 @@
 
 ---
 
-### 8. WebSocket
+### 9. WebSocket
 
 #### `GET /ws?token=<JWT_or_API_Key>`
 

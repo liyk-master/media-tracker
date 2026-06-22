@@ -331,6 +331,10 @@ func (s *UploadService) Upload(userID uint, req *UploadRequest) (*UploadResult, 
 		return nil, err
 	}
 
+	if !result.TmdbMatched && (result.MediaType == "tv" || result.MediaType == "movie") {
+		return nil, fmt.Errorf("识别失败: 未匹配到 TMDB 条目 (media_type=%s)", result.MediaType)
+	}
+
 	var jsonData model.JSON
 	if result.TmdbInfo != nil {
 		raw, _ := json.Marshal(result)
