@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '../context'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, connectWS, type MediaItem } from '../api'
 import UploadForm from '../components/UploadForm'
 
@@ -33,18 +33,25 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false)
   const [notifications, setNotifications] = useState<string[]>([])
   const [batches, setBatches] = useState<BatchProgress[]>([])
-  const [searchQ, setSearchQ] = useState('')
-  const [searchMediaType, setSearchMediaType] = useState('')
-  const [searchYear, setSearchYear] = useState('')
-  const [activeQ, setActiveQ] = useState('')
-  const [activeMediaType, setActiveMediaType] = useState('')
-  const [activeYear, setActiveYear] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchQ, setSearchQ] = useState(searchParams.get('q') || '')
+  const [searchMediaType, setSearchMediaType] = useState(searchParams.get('media_type') || '')
+  const [searchYear, setSearchYear] = useState(searchParams.get('year') || '')
+  const activeQ = searchParams.get('q') || ''
+  const activeMediaType = searchParams.get('media_type') || ''
+  const activeYear = searchParams.get('year') || ''
+  const hasFilterRef = useRef(false)
+  hasFilterRef.current = !!(activeQ || activeMediaType || activeYear)
   const pageSize = 20
   const [selectedTmdbIds, setSelectedTmdbIds] = useState<Set<number>>(new Set())
   const [editingTMDB, setEditingTMDB] = useState<number | null>(null)
   const [editTMDBValue, setEditTMDBValue] = useState('')
   const [editTMDBLoading, setEditTMDBLoading] = useState(false)
   const [editMediaType, setEditMediaType] = useState('')
+  const [editOldTmdbId, setEditOldTmdbId] = useState(0)
+  const [resendStartTime, setResendStartTime] = useState('')
+  const [resendEndTime, setResendEndTime] = useState('')
+  const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') || 'dark')
 
   const loadMedia = useCallback(async (p: number) => {
     setLoading(true)
@@ -78,7 +85,7 @@ export default function DashboardPage() {
           const showName = msg.payload?.show_name || title
           setNotifications((prev) => [showName ? `${u} 上传「${showName}」` : `${u} 上传成功`, ...prev].slice(0, 5))
           const tmdbId = msg.payload?.tmdb_id
-          if (tmdbId) {
+          if (tmdbId && !hasFilterRef.current) {
             const year = msg.payload?.year
             const count = msg.payload?.count ?? 1
             setMediaList((prev) => {
@@ -159,9 +166,11 @@ export default function DashboardPage() {
   }, [])
 
   function handleSearch() {
-    setActiveQ(searchQ)
-    setActiveMediaType(searchMediaType)
-    setActiveYear(searchYear)
+    const params: Record<string, string> = {}
+    if (searchQ) params.q = searchQ
+    if (searchMediaType) params.media_type = searchMediaType
+    if (searchYear) params.year = searchYear
+    setSearchParams(params)
     setPage(1)
   }
 
@@ -169,9 +178,7 @@ export default function DashboardPage() {
     setSearchQ('')
     setSearchMediaType('')
     setSearchYear('')
-    setActiveQ('')
-    setActiveMediaType('')
-    setActiveYear('')
+    setSearchParams({})
     setPage(1)
   }
 
@@ -229,6 +236,7 @@ export default function DashboardPage() {
 
   function handleEditTMDB(media: MediaItem) {
     setEditingTMDB(media.id)
+    setEditOldTmdbId(media.tmdb_id)
     setEditTMDBValue(String(media.tmdb_id || ''))
     setEditMediaType(media.media_type || 'tv')
   }
@@ -239,7 +247,7 @@ export default function DashboardPage() {
     if (isNaN(tmdbId)) return
     setEditTMDBLoading(true)
     try {
-      await api.updateMediaTMDB(editingTMDB, tmdbId, editMediaType)
+      await api.updateMediaTMDB(editingTMDB, tmdbId, editMediaType, editOldTmdbId)
       setEditingTMDB(null)
       loadMedia(page)
     } finally {
@@ -249,6 +257,13 @@ export default function DashboardPage() {
 
   function handleCancelTMDB() {
     setEditingTMDB(null)
+  }
+
+  function formatTime(iso: string): string {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   function formatBytes(bytes: number): string {
@@ -322,6 +337,19 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const next = theme === 'light' ? 'dark' : 'light'
+                setTheme(next)
+                document.documentElement.setAttribute('data-theme', next)
+                localStorage.setItem('theme', next)
+              }}
+              className="btn-ghost"
+              style={{ fontSize: '14px', padding: '5px 10px', lineHeight: 1 }}
+              title={theme === 'light' ? '切换到深色' : '切换到亮色'}
+            >
+              {theme === 'light' ? '🌙' : '☀'}
+            </button>
             <button
               onClick={() => navigate('/profile')}
               className="btn-ghost"
@@ -512,9 +540,9 @@ export default function DashboardPage() {
                   })
                 }}
                 style={{
-                  width: '20px', height: '20px', borderRadius: '4px', cursor: 'pointer',
-                  background: mediaList.length > 0 && mediaList.every((m) => selectedTmdbIds.has(m.tmdb_id)) ? 'var(--accent-amber)' : 'rgba(255,255,255,0.1)',
-                  border: mediaList.length > 0 && mediaList.every((m) => selectedTmdbIds.has(m.tmdb_id)) ? '2px solid var(--accent-amber)' : '2px solid rgba(255,255,255,0.2)',
+                    width: '20px', height: '20px', borderRadius: '4px', cursor: 'pointer',
+                    background: mediaList.length > 0 && mediaList.every((m) => selectedTmdbIds.has(m.tmdb_id)) ? 'var(--accent-amber)' : 'var(--select-bg)',
+                    border: mediaList.length > 0 && mediaList.every((m) => selectedTmdbIds.has(m.tmdb_id)) ? '2px solid var(--accent-amber)' : '2px solid var(--select-border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   transition: 'all 0.15s ease',
                 }}
@@ -594,6 +622,55 @@ export default function DashboardPage() {
             >
               导出 JSON
             </button>
+            {selectedTmdbIds.size > 0 && (
+              <button
+                className="btn-ghost"
+                onClick={() => {
+                  api.resendMedia({ tmdb_ids: [...selectedTmdbIds] }).then(r => {
+                    setNotifications(prev => [`已重新推送 ${r.count} 条 WS 消息`, ...prev].slice(0, 5))
+                    clearSelection()
+                  }).catch(err => {
+                    setNotifications(prev => [`拉取视频失败: ${err.message}`, ...prev].slice(0, 5))
+                  })
+                }}
+                style={{ fontSize: '12px', padding: '7px 14px' }}
+              >
+                拉取视频 ({selectedTmdbIds.size})
+              </button>
+            )}
+            <div className="flex items-center gap-2" style={{ marginTop: '6px', flexWrap: 'wrap' }}>
+              <input
+                type="datetime-local"
+                className="input-base"
+                value={resendStartTime}
+                onChange={(e) => setResendStartTime(e.target.value)}
+                style={{ width: 'auto', fontSize: '12px', padding: '5px 10px', maxWidth: '190px' }}
+              />
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>～</span>
+              <input
+                type="datetime-local"
+                className="input-base"
+                value={resendEndTime}
+                onChange={(e) => setResendEndTime(e.target.value)}
+                style={{ width: 'auto', fontSize: '12px', padding: '5px 10px', maxWidth: '190px' }}
+              />
+              <button
+                className="btn-primary"
+                disabled={!resendStartTime || !resendEndTime}
+                onClick={() => {
+                  const start = new Date(resendStartTime).toISOString()
+                  const end = new Date(resendEndTime).toISOString()
+                  api.resendMedia({ start_time: start, end_time: end }).then(r => {
+                    setNotifications(prev => [`已按时间拉取 ${r.count} 条 WS 消息`, ...prev].slice(0, 5))
+                  }).catch(err => {
+                    setNotifications(prev => [`拉取失败: ${err.message}`, ...prev].slice(0, 5))
+                  })
+                }}
+                style={{ fontSize: '12px', padding: '5px 14px' }}
+              >
+                拉取视频
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -644,8 +721,8 @@ export default function DashboardPage() {
                         position: 'absolute', top: '6px', left: '6px', zIndex: 10,
                         width: '20px', height: '20px',
                         borderRadius: '4px',
-                        background: selectedTmdbIds.has(m.tmdb_id) ? 'var(--accent-amber)' : 'rgba(0,0,0,0.5)',
-                        border: selectedTmdbIds.has(m.tmdb_id) ? '2px solid var(--accent-amber)' : '2px solid rgba(255,255,255,0.3)',
+                        background: selectedTmdbIds.has(m.tmdb_id) ? 'var(--accent-amber)' : 'var(--checkbox-bg)',
+                        border: selectedTmdbIds.has(m.tmdb_id) ? '2px solid var(--accent-amber)' : '2px solid var(--checkbox-border)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         cursor: 'pointer', transition: 'all 0.15s ease',
                       }}
@@ -691,9 +768,25 @@ export default function DashboardPage() {
                             </>
                           ) : (
                             <span className="media-tmdb-none">
-                              — <span className="media-edit-icon">✎</span>
+                              —                               <span className="media-edit-icon">✎</span>
                             </span>
                           )}
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              api.resendMedia({ tmdb_ids: [m.tmdb_id] }).then(r => {
+                                setNotifications(prev => [`已重新推送 ${r.count} 条 WS 消息`, ...prev].slice(0, 5))
+                              }).catch(err => {
+                                setNotifications(prev => [`拉取视频失败: ${err.message}`, ...prev].slice(0, 5))
+                              })
+                            }}
+                            style={{ cursor: 'pointer', fontSize: '12px', color: 'var(--text-dim)', marginLeft: 'auto', opacity: 0.5, transition: 'opacity 0.2s' }}
+                            title="拉取视频"
+                            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.5')}
+                          >
+                            📥
+                          </span>
                         </span>
                       </div>
 
@@ -706,6 +799,14 @@ export default function DashboardPage() {
                           fontSize: '12px', color: 'var(--text-dim)', marginTop: '4px',
                         }}>
                           {m.json_data.year}
+                        </div>
+                      )}
+
+                      {m.created_at && (
+                        <div style={{
+                          fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px',
+                        }}>
+                          🕐 {formatTime(m.created_at)}
                         </div>
                       )}
 

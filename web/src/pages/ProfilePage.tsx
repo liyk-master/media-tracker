@@ -108,7 +108,7 @@ export default function ProfilePage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div className="profile-content-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           {/* Profile Card */}
           <section className="card animate-in stagger-1">
             <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -171,7 +171,7 @@ export default function ProfilePage() {
             <div className="px-6 py-5">
               {stats && (
                 <>
-                  <div style={{
+                  <div className="profile-stats-row" style={{
                     display: 'flex',
                     marginBottom: '28px',
                   }}>
@@ -180,13 +180,13 @@ export default function ProfilePage() {
                       { value: stats.total_shows, label: '剧集/电影', color: 'var(--accent-teal)' },
                       { value: formatBytes(stats.total_size), label: '上传总大小', color: 'var(--accent-amber)' },
                     ].map((item, i) => (
-                      <div key={i} style={{
+                      <div key={i} className="profile-stat-block" style={{
                         flex: 1,
                         textAlign: 'center',
                         padding: '4px 12px',
                         borderRight: i < 2 ? '1px solid var(--border)' : 'none',
                       }}>
-                        <div style={{
+                        <div className="profile-stat-value" style={{
                           fontSize: '28px',
                           fontFamily: "'Archivo Black', sans-serif",
                           color: item.color,
@@ -198,7 +198,7 @@ export default function ProfilePage() {
                         }}>
                           {item.value}
                         </div>
-                        <div style={{
+                        <div className="profile-stat-label" style={{
                           fontSize: '11px',
                           color: 'var(--text-dim)',
                           marginTop: '6px',
@@ -263,8 +263,8 @@ export default function ProfilePage() {
             </h3>
           </div>
           <div className="px-6 py-5">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
+            <div className="profile-api-row" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="profile-api-key" style={{
                 flex: 1,
                 padding: '10px 14px',
                 background: 'var(--bg-elevated)',

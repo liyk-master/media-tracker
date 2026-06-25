@@ -81,6 +81,21 @@ func GetMediaByID(id uint) (*model.Media, error) {
 	return &m, nil
 }
 
+func ListMediaByTimeRange(startTime, endTime string) ([]model.Media, error) {
+	var list []model.Media
+	query := config.Conf.DB.Model(&model.Media{})
+	if startTime != "" {
+		query = query.Where("created_at >= ?", startTime)
+	}
+	if endTime != "" {
+		query = query.Where("created_at <= ?", endTime)
+	}
+	if err := query.Order("id DESC").Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
+}
+
 func ListMediaByTmdbIDs(tmdbIDs []int) ([]model.Media, error) {
 	var list []model.Media
 	if err := config.Conf.DB.Model(&model.Media{}).Where("tmdb_id IN ?", tmdbIDs).Order("id DESC").Find(&list).Error; err != nil {
@@ -99,6 +114,17 @@ func CountMediaByTmdbID(tmdbID int) (int64, error) {
 
 func UpdateMedia(id uint, updates map[string]interface{}) error {
 	return config.Conf.DB.Model(&model.Media{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func ListMediaByTmdbID(tmdbID int, excludeID uint) ([]model.Media, error) {
+	var list []model.Media
+	if err := config.Conf.DB.Model(&model.Media{}).
+		Where("tmdb_id = ? AND id != ?", tmdbID, excludeID).
+		Order("id DESC").
+		Find(&list).Error; err != nil {
+		return nil, err
+	}
+	return list, nil
 }
 
 type MediaGroupRow struct {

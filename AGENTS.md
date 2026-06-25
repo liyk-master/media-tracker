@@ -47,6 +47,11 @@ web/src/
 - Frontend `page_size=100`, epg list paginated at 50 per page.
 - Export logging runs in a goroutine after response is sent.
 
+## 脱机脚本
+
+- `cmd/reidentify/main.go` — 检查 media_type='tv' 的分组，对计数 1-2 的重新识别并更新为 movie
+- `cmd/syncpath/main.go` — 对缺少 suggested_path 的记录重新识别并补充
+
 ## 语言规范
 - 所有对话和文档都使用中文
 - 文档使用 markdown 格式

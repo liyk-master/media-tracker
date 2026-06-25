@@ -79,19 +79,43 @@ func (h *UploadHandler) UpdateTMDB(c *gin.Context) {
 	var req struct {
 		TMDBID    int    `json:"tmdb_id"`
 		MediaType string `json:"media_type"`
+		OldTmdbID int    `json:"old_tmdb_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, "参数错误: "+err.Error())
 		return
 	}
 
-	updated, err := h.uploadService.UpdateTMDBID(uint(id), req.TMDBID, req.MediaType)
+	updated, err := h.uploadService.UpdateTMDBID(uint(id), req.TMDBID, req.MediaType, req.OldTmdbID)
 	if err != nil {
 		response.Error(c, err.Error())
 		return
 	}
 
 	response.Success(c, updated)
+}
+
+func (h *UploadHandler) ResendNewMedia(c *gin.Context) {
+	userID := c.GetUint("userID")
+
+	var req struct {
+		IDs       []uint `json:"ids"`
+		TmdbIDs   []int  `json:"tmdb_ids"`
+		StartTime string `json:"start_time"`
+		EndTime   string `json:"end_time"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, "参数错误: "+err.Error())
+		return
+	}
+
+	count, err := h.uploadService.ResendNewMedia(userID, req.IDs, req.TmdbIDs, req.StartTime, req.EndTime)
+	if err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"count": count})
 }
 
 func (h *UploadHandler) processFileUpload(userID uint, file multipart.File, header *multipart.FileHeader) (*service.SubmitResult, error) {

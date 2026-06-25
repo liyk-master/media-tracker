@@ -142,10 +142,17 @@ export const api = {
     URL.revokeObjectURL(url)
   },
 
-  updateMediaTMDB(id: number, tmdbId: number, mediaType?: string) {
+  updateMediaTMDB(id: number, tmdbId: number, mediaType?: string, oldTmdbId?: number) {
     return request<MediaItem>(`/api/media/${id}/tmdb`, {
       method: 'PUT',
-      body: JSON.stringify({ tmdb_id: tmdbId, media_type: mediaType }),
+      body: JSON.stringify({ tmdb_id: tmdbId, media_type: mediaType, old_tmdb_id: oldTmdbId }),
+    })
+  },
+
+  resendMedia(params: { ids?: number[]; tmdb_ids?: number[]; start_time?: string; end_time?: string }) {
+    return request<{ count: number }>('/api/media/resend-ws', {
+      method: 'POST',
+      body: JSON.stringify(params),
     })
   },
 

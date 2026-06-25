@@ -113,6 +113,7 @@ func main() {
 			protected.GET("/media/export", mediaHandler.Export)
 			protected.PUT("/media/:id/tmdb", middleware.CanEditTMDB(), uploadHandler.UpdateTMDB)
 			protected.POST("/manual/validate", manualHandler.Validate)
+			protected.POST("/media/resend-ws", uploadHandler.ResendNewMedia)
 			protected.GET("/media/:id", mediaHandler.GetByID)
 		protected.GET("/user/apikey", userHandler.GetAPIKey)
 		protected.GET("/user/profile", userHandler.GetProfile)

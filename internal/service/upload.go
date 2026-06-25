@@ -399,21 +399,35 @@ func (s *UploadService) Upload(userID uint, req *UploadRequest) (*UploadResult, 
 	}, nil
 }
 
-func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType string) (*model.Media, error) {
-	media, err := repository.GetMediaByID(mediaID)
-	if err != nil {
-		return nil, fmt.Errorf("查询媒体记录失败: %w", err)
+type reidentifyResult struct {
+	jsonData      model.JSON
+	mediaType     string
+	suggestedPath string
+}
+
+func (s *UploadService) reidentifyMedia(media *model.Media, newTmdbID int, mediaType string) (*reidentifyResult, error) {
+	var season, episode int
+	if len(media.JsonData) > 0 {
+		var jd map[string]any
+		json.Unmarshal([]byte(media.JsonData), &jd)
+		if s, ok := jd["season"].(float64); ok {
+			season = int(s)
+		}
+		if e, ok := jd["episode"].(float64); ok {
+			episode = int(e)
+		}
 	}
-	if media == nil {
-		return nil, fmt.Errorf("媒体记录不存在")
-	}
+
 	fakeName := fmt.Sprintf("manual_{tmdbid=%d}_{%s}.mp4", newTmdbID, mediaType)
+	if season > 0 && episode > 0 {
+		fakeName = fmt.Sprintf("manual_S%02dE%02d_{tmdbid=%d}_{%s}.mp4",
+			season, episode, newTmdbID, mediaType)
+	}
 	result, err := s.identifier.Identify(fakeName, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("重新识别失败: %w", err)
 	}
 
-	// Parse existing json_data and merge TMDB fields from the identify result
 	var jsonDataMap map[string]any
 	if len(media.JsonData) > 0 {
 		json.Unmarshal([]byte(media.JsonData), &jsonDataMap)
@@ -428,15 +442,15 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType stri
 		jsonDataMap["success"] = true
 		jsonDataMap["confidence"] = 1.0
 
-		// Extract title from tmdb_info (not from fake filename parsing)
 		if title, ok := result.TmdbInfo["title"].(string); ok && title != "" {
 			jsonDataMap["title"] = title
 		} else if name, ok := result.TmdbInfo["name"].(string); ok && name != "" {
 			jsonDataMap["title"] = name
 		}
 
-		// Extract year from tmdb_info (supports year, release_date, first_air_date)
-		if y, ok := result.TmdbInfo["year"].(float64); ok && y > 0 {
+		if result.Year > 0 {
+			jsonDataMap["year"] = result.Year
+		} else if y, ok := result.TmdbInfo["year"].(float64); ok && y > 0 {
 			jsonDataMap["year"] = int(y)
 		} else if yStr, ok := result.TmdbInfo["year"].(string); ok && yStr != "" {
 			if y, err := strconv.Atoi(yStr); err == nil {
@@ -456,7 +470,6 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType stri
 			}
 		}
 
-		// Build suggested_name from title and year
 		if title, ok := jsonDataMap["title"].(string); ok && title != "" {
 			if year, ok := jsonDataMap["year"].(int); ok && year > 0 {
 				jsonDataMap["suggested_name"] = fmt.Sprintf("%s (%d).mp4", title, year)
@@ -481,14 +494,58 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType stri
 		newMediaType = result.MediaType
 	}
 
+	return &reidentifyResult{
+		jsonData:      jsonData,
+		mediaType:     newMediaType,
+		suggestedPath: result.SuggestedPath,
+	}, nil
+}
+
+func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType string, oldTmdbID int) (*model.Media, error) {
+	media, err := repository.GetMediaByID(mediaID)
+	if err != nil {
+		return nil, fmt.Errorf("查询媒体记录失败: %w", err)
+	}
+	if media == nil {
+		return nil, fmt.Errorf("媒体记录不存在")
+	}
+
+	identResult, err := s.reidentifyMedia(media, newTmdbID, mediaType)
+	if err != nil {
+		return nil, err
+	}
+
 	updates := map[string]any{
 		"tmdb_id":    newTmdbID,
-		"media_type": newMediaType,
-		"json_data":  jsonData,
+		"media_type": identResult.mediaType,
+		"json_data":  identResult.jsonData,
 	}
 
 	if err := repository.UpdateMedia(mediaID, updates); err != nil {
 		return nil, fmt.Errorf("更新媒体记录失败: %w", err)
+	}
+
+	if oldTmdbID > 0 {
+		batchList, err := repository.ListMediaByTmdbID(oldTmdbID, mediaID)
+		if err != nil {
+			log.Printf("[warn] 查询同组媒体记录失败: %v", err)
+		} else {
+			for i := range batchList {
+				r, err := s.reidentifyMedia(&batchList[i], newTmdbID, mediaType)
+				if err != nil {
+					log.Printf("[warn] 批量重新识别失败 (id=%d): %v", batchList[i].ID, err)
+					continue
+				}
+				batchUpdates := map[string]any{
+					"tmdb_id":    newTmdbID,
+					"media_type": r.mediaType,
+					"json_data":  r.jsonData,
+				}
+				if err := repository.UpdateMedia(batchList[i].ID, batchUpdates); err != nil {
+					log.Printf("[warn] 批量更新媒体记录失败 (id=%d): %v", batchList[i].ID, err)
+				}
+			}
+		}
 	}
 
 	updated, _ := repository.GetMediaByID(mediaID)
@@ -500,7 +557,7 @@ func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType stri
 				"sha256":         updated.Sha256,
 				"tmdb_id":        updated.TMDBID,
 				"media_type":     updated.MediaType,
-				"suggested_path": extractSuggestedPath(jsonData),
+				"suggested_path": extractSuggestedPath(identResult.jsonData),
 			},
 		})
 		return updated, nil
@@ -576,6 +633,67 @@ func extractYear(jsonData model.JSON) string {
 		}
 	}
 	return ""
+}
+
+func (s *UploadService) ResendNewMedia(userID uint, ids []uint, tmdbIDs []int, startTime, endTime string) (int, error) {
+	var records []model.Media
+	var err error
+
+	switch {
+	case startTime != "" || endTime != "":
+		records, err = repository.ListMediaByTimeRange(startTime, endTime)
+	case len(ids) > 0:
+		records, err = repository.ListMediaByIDs(ids)
+	case len(tmdbIDs) > 0:
+		records, err = repository.ListMediaByTmdbIDs(tmdbIDs)
+	default:
+		return 0, fmt.Errorf("请提供 ids、tmdb_ids 或时间范围参数")
+	}
+
+	if err != nil {
+		return 0, fmt.Errorf("查询媒体记录失败: %w", err)
+	}
+
+	if len(records) == 0 {
+		return 0, fmt.Errorf("未找到匹配的媒体记录")
+	}
+
+	username := s.fetchUsername(userID)
+
+	for _, m := range records {
+		cleanName := extractCleanName(m.JsonData, m.FileName)
+		showName := extractShowName(m.JsonData)
+		suggestedPath := extractSuggestedPath(m.JsonData)
+		title := extractTitle(m.JsonData)
+		if title == "" {
+			title = cleanName
+		}
+
+		payload := map[string]any{
+			"id":             m.ID,
+			"sha256":         m.Sha256,
+			"tmdb_id":        m.TMDBID,
+			"title":          cleanName,
+			"show_name":      showName,
+			"media_type":     m.MediaType,
+			"file_name":      m.FileName,
+			"file_size":      m.FileSize,
+			"username":       username,
+			"suggested_path": suggestedPath,
+		}
+		if m.TMDBID > 0 {
+			payload["year"] = extractYear(m.JsonData)
+			mediaCount, _ := repository.CountMediaByTmdbID(m.TMDBID)
+			payload["count"] = mediaCount
+		}
+		s.hub.SendToUser(userID, ws.Message{
+			Type:    "new_media",
+			Payload: payload,
+		})
+	}
+
+	log.Printf("[resend] 重新推送 %d 条 new_media 消息", len(records))
+	return len(records), nil
 }
 
 func extractTitle(jsonData model.JSON) string {
