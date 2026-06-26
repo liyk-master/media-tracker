@@ -85,7 +85,6 @@ func main() {
 	adminHandler := handler.NewAdminHandler()
 	tmdbHandler := handler.NewTMDBHandler()
 	manualHandler := handler.NewManualHandler(identifierService)
-
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
 
@@ -115,6 +114,7 @@ func main() {
 			protected.POST("/manual/validate", manualHandler.Validate)
 			protected.POST("/media/resend-ws", uploadHandler.ResendNewMedia)
 			protected.GET("/media/:id", mediaHandler.GetByID)
+			protected.GET("/leaderboard", mediaHandler.GetLeaderboard)
 		protected.GET("/user/apikey", userHandler.GetAPIKey)
 		protected.GET("/user/profile", userHandler.GetProfile)
 		protected.GET("/user/stats", userHandler.GetStats)

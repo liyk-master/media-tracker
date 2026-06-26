@@ -66,3 +66,24 @@ type Media struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+type MediaWithUser struct {
+	ID        uint      `json:"id"`
+	Sha256    string    `json:"sha256"`
+	FileName  string    `json:"file_name"`
+	FileSize  int64     `json:"file_size"`
+	CloudType string    `json:"cloud_type"`
+	UserID    uint      `json:"user_id"`
+	TMDBID    int       `json:"tmdb_id"`
+	MediaType string    `json:"media_type"`
+	JsonData  JSON      `json:"json_data"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Username  string    `json:"username"`
+}
+
+type LeaderboardItem struct {
+	Username   string `json:"username"`
+	TotalSize  int64  `json:"total_size"`
+	TotalCount int64  `json:"total_count"`
+}

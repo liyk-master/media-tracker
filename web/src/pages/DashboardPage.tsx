@@ -357,6 +357,13 @@ export default function DashboardPage() {
             >
               个人中心
             </button>
+            <button
+              onClick={() => navigate('/leaderboard')}
+              className="btn-ghost"
+              style={{ fontSize: '13px', padding: '5px 12px' }}
+            >
+              排行榜
+            </button>
             {role === 'admin' && (
               <button
                 onClick={() => navigate('/admin')}

@@ -213,6 +213,7 @@ export default function TmdbDetailPage() {
                       <th style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 500, width: '36%' }}>版本</th>
                       <th style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>大小</th>
                       <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>云端</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>上传者</th>
                       <th style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>时间</th>
                       <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>操作</th>
                     </tr>
@@ -235,6 +236,9 @@ export default function TmdbDetailPage() {
                         </td>
                         <td style={{ padding: '8px 16px', color: 'var(--text-muted)', textAlign: 'center' }}>
                           {m.cloud_type || '—'}
+                        </td>
+                        <td style={{ padding: '8px 16px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                          {m.username || '—'}
                         </td>
                         <td style={{ padding: '8px 16px', color: 'var(--text-dim)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                           {m.created_at?.slice(0, 10)}
@@ -297,6 +301,7 @@ export default function TmdbDetailPage() {
                                 <th style={{ padding: '8px 14px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 500, width: '36%' }}>版本</th>
                                 <th style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>大小</th>
                                 <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>云端</th>
+                                <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>上传者</th>
                                 <th style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>时间</th>
                                 <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>操作</th>
                               </tr>
@@ -319,6 +324,9 @@ export default function TmdbDetailPage() {
                                   </td>
                                   <td style={{ padding: '8px 14px', color: 'var(--text-muted)', textAlign: 'center' }}>
                                     {m.cloud_type || '—'}
+                                  </td>
+                                  <td style={{ padding: '8px 14px', color: 'var(--text-muted)', textAlign: 'center' }}>
+                                    {m.username || '—'}
                                   </td>
                                   <td style={{ padding: '8px 14px', color: 'var(--text-dim)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                     {m.created_at?.slice(0, 10)}

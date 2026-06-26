@@ -89,13 +89,52 @@ func (h *MediaHandler) GetByID(c *gin.Context) {
 	response.Success(c, m)
 }
 
+func (h *MediaHandler) GetLeaderboard(c *gin.Context) {
+	list, err := repository.GetLeaderboard()
+	if err != nil {
+		response.Error(c, "获取排行榜失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"items": list,
+	})
+}
+
+func extractSuggestedPath(jsonData model.JSON) string {
+	if len(jsonData) == 0 {
+		return ""
+	}
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return ""
+	}
+	if path, ok := data["suggested_path"].(string); ok && path != "" {
+		return path
+	}
+	return ""
+}
+
+func extractSuggestedName(jsonData model.JSON, fallback string) string {
+	if len(jsonData) == 0 {
+		return fallback
+	}
+	var data map[string]any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return fallback
+	}
+	if name, ok := data["suggested_name"].(string); ok && name != "" {
+		return name
+	}
+	return fallback
+}
+
 func (h *MediaHandler) Export(c *gin.Context) {
 	q := c.Query("q")
 	mediaType := c.Query("media_type")
 	tmdbID, _ := strconv.Atoi(c.Query("tmdb_id"))
 	tmdbIDsStr := c.Query("tmdb_ids")
 
-	var list []model.Media
+	var list []model.MediaWithUser
 
 	if tmdbIDsStr != "" {
 		parts := strings.Split(tmdbIDsStr, ",")
@@ -138,10 +177,15 @@ func (h *MediaHandler) Export(c *gin.Context) {
 
 	exportList := make([]exportItem, 0, len(list))
 	for _, m := range list {
+		suggestedPath := extractSuggestedPath(m.JsonData)
+		name := suggestedPath
+		if name == "" {
+			name = extractSuggestedName(m.JsonData, m.FileName)
+		}
 		exportList = append(exportList, exportItem{
 			Sha256: m.Sha256,
 			Size:   m.FileSize,
-			Name:   m.FileName,
+			Name:   name,
 			Cloud:  m.CloudType,
 		})
 	}
@@ -152,7 +196,29 @@ func (h *MediaHandler) Export(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename=media_export.json")
+	filename := "media_export.json"
+	if len(list) == 1 {
+		m := list[0]
+		suggestedPath := extractSuggestedPath(m.JsonData)
+		if suggestedPath != "" {
+			if idx := strings.LastIndex(suggestedPath, "."); idx > 0 {
+				filename = suggestedPath[:idx] + ".json"
+			} else {
+				filename = suggestedPath + ".json"
+			}
+		} else {
+			suggestedName := extractSuggestedName(m.JsonData, "")
+			if suggestedName != "" {
+				if idx := strings.LastIndex(suggestedName, "."); idx > 0 {
+					filename = suggestedName[:idx] + ".json"
+				} else {
+					filename = suggestedName + ".json"
+				}
+			}
+		}
+	}
+
+	c.Header("Content-Disposition", "attachment; filename="+filename)
 	c.Data(http.StatusOK, "application/json; charset=utf-8", raw)
 
 	go func() {

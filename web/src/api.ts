@@ -14,6 +14,7 @@ export interface MediaItem {
   created_at: string
   count?: number
   total_size?: number
+  username?: string
 }
 
 export interface SubmitResult {
@@ -36,6 +37,12 @@ export interface MediaListResult {
   page: number
   page_size: number
   items: MediaItem[]
+}
+
+export interface LeaderboardItem {
+  username: string
+  total_size: number
+  total_count: number
 }
 
 function getToken(): string | null {
@@ -178,6 +185,11 @@ export const api = {
   resetAPIKey() {
     return request<{ api_key: string }>('/api/user/apikey/reset', { method: 'POST' })
   },
+
+  getLeaderboard() {
+    return request<{ items: LeaderboardItem[] }>('/api/leaderboard')
+  },
+
 }
 
 export function connectWS(onMessage: (data: any) => void): WebSocket {

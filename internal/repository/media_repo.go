@@ -46,59 +46,92 @@ func buildQuery(q, mediaType string, tmdbID int, year int) *gorm.DB {
 	return query
 }
 
-func ListMedia(page, pageSize int, q, mediaType string, tmdbID int, year int) ([]model.Media, int64, error) {
-	var list []model.Media
+func ListMedia(page, pageSize int, q, mediaType string, tmdbID int, year int) ([]model.MediaWithUser, int64, error) {
+	var list []model.MediaWithUser
 	var total int64
 	query := buildQuery(q, mediaType, tmdbID, year)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	offset := (page - 1) * pageSize
-	if err := query.Order("id DESC").Offset(offset).Limit(pageSize).Find(&list).Error; err != nil {
+	
+	db := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id")
+	
+	if q != "" {
+		db = db.Where("media.file_name LIKE ?", "%"+q+"%")
+	}
+	if mediaType != "" {
+		db = db.Where("media.media_type = ?", mediaType)
+	}
+	if tmdbID > 0 {
+		db = db.Where("media.tmdb_id = ?", tmdbID)
+	}
+	if year > 0 {
+		db = db.Where("JSON_EXTRACT(media.json_data, '$.year') = ?", year)
+	}
+	
+	if err := db.Order("media.id DESC").Offset(offset).Limit(pageSize).Scan(&list).Error; err != nil {
 		return nil, 0, err
 	}
 	return list, total, nil
 }
 
-func ListMediaByIDs(ids []uint) ([]model.Media, error) {
-	var list []model.Media
-	query := config.Conf.DB.Model(&model.Media{}).Where("id IN ?", ids)
-	if err := query.Order("id DESC").Find(&list).Error; err != nil {
+func ListMediaByIDs(ids []uint) ([]model.MediaWithUser, error) {
+	var list []model.MediaWithUser
+	if err := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id").
+		Where("media.id IN ?", ids).
+		Order("media.id DESC").
+		Scan(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
 }
 
-func GetMediaByID(id uint) (*model.Media, error) {
-	var m model.Media
-	result := config.Conf.DB.Where("id = ?", id).Limit(1).Find(&m)
-	if result.Error != nil {
-		return nil, result.Error
+func GetMediaByID(id uint) (*model.MediaWithUser, error) {
+	var m model.MediaWithUser
+	if err := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id").
+		Where("media.id = ?", id).
+		Limit(1).
+		Scan(&m).Error; err != nil {
+		return nil, err
 	}
-	if result.RowsAffected == 0 {
+	if m.ID == 0 {
 		return nil, nil
 	}
 	return &m, nil
 }
 
-func ListMediaByTimeRange(startTime, endTime string) ([]model.Media, error) {
-	var list []model.Media
-	query := config.Conf.DB.Model(&model.Media{})
+func ListMediaByTimeRange(startTime, endTime string) ([]model.MediaWithUser, error) {
+	var list []model.MediaWithUser
+	db := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id")
 	if startTime != "" {
-		query = query.Where("created_at >= ?", startTime)
+		db = db.Where("media.created_at >= ?", startTime)
 	}
 	if endTime != "" {
-		query = query.Where("created_at <= ?", endTime)
+		db = db.Where("media.created_at <= ?", endTime)
 	}
-	if err := query.Order("id DESC").Find(&list).Error; err != nil {
+	if err := db.Order("media.id DESC").Scan(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
 }
 
-func ListMediaByTmdbIDs(tmdbIDs []int) ([]model.Media, error) {
-	var list []model.Media
-	if err := config.Conf.DB.Model(&model.Media{}).Where("tmdb_id IN ?", tmdbIDs).Order("id DESC").Find(&list).Error; err != nil {
+func ListMediaByTmdbIDs(tmdbIDs []int) ([]model.MediaWithUser, error) {
+	var list []model.MediaWithUser
+	if err := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id").
+		Where("media.tmdb_id IN ?", tmdbIDs).
+		Order("media.id DESC").
+		Scan(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -116,12 +149,14 @@ func UpdateMedia(id uint, updates map[string]interface{}) error {
 	return config.Conf.DB.Model(&model.Media{}).Where("id = ?", id).Updates(updates).Error
 }
 
-func ListMediaByTmdbID(tmdbID int, excludeID uint) ([]model.Media, error) {
-	var list []model.Media
-	if err := config.Conf.DB.Model(&model.Media{}).
-		Where("tmdb_id = ? AND id != ?", tmdbID, excludeID).
-		Order("id DESC").
-		Find(&list).Error; err != nil {
+func ListMediaByTmdbID(tmdbID int, excludeID uint) ([]model.MediaWithUser, error) {
+	var list []model.MediaWithUser
+	if err := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id").
+		Where("media.tmdb_id = ? AND media.id != ?", tmdbID, excludeID).
+		Order("media.id DESC").
+		Scan(&list).Error; err != nil {
 		return nil, err
 	}
 	return list, nil
@@ -266,14 +301,49 @@ func GetUserMediaStats(userID uint) (*UserMediaStats, error) {
 	}, nil
 }
 
-func ListAllMedia(q, mediaType string, tmdbID int, limit int, year int) ([]model.Media, error) {
-	var list []model.Media
-	query := buildQuery(q, mediaType, tmdbID, year)
+func ListAllMedia(q, mediaType string, tmdbID int, limit int, year int) ([]model.MediaWithUser, error) {
+	var list []model.MediaWithUser
 	if limit <= 0 {
 		limit = 10000
 	}
-	if err := query.Order("id DESC").Limit(limit).Find(&list).Error; err != nil {
+	
+	db := config.Conf.DB.Table("media").
+		Select("media.*, user.username").
+		Joins("LEFT JOIN user ON media.user_id = user.id")
+	
+	if q != "" {
+		db = db.Where("media.file_name LIKE ?", "%"+q+"%")
+	}
+	if mediaType != "" {
+		db = db.Where("media.media_type = ?", mediaType)
+	}
+	if tmdbID > 0 {
+		db = db.Where("media.tmdb_id = ?", tmdbID)
+	}
+	if year > 0 {
+		db = db.Where("JSON_EXTRACT(media.json_data, '$.year') = ?", year)
+	}
+	
+	if err := db.Order("media.id DESC").Limit(limit).Scan(&list).Error; err != nil {
 		return nil, fmt.Errorf("查询导出数据失败: %w", err)
 	}
+	
 	return list, nil
+}
+
+func GetLeaderboard() ([]model.LeaderboardItem, error) {
+	var items []model.LeaderboardItem
+	
+	err := config.Conf.DB.Table("user").
+		Select("user.username, COUNT(media.id) as total_count, COALESCE(SUM(media.file_size), 0) as total_size").
+		Joins("LEFT JOIN media ON user.id = media.user_id").
+		Group("user.id, user.username").
+		Order("total_size DESC").
+		Scan(&items).Error
+	
+	if err != nil {
+		return nil, fmt.Errorf("查询排行榜失败: %w", err)
+	}
+	
+	return items, nil
 }

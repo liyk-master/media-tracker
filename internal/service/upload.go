@@ -405,7 +405,7 @@ type reidentifyResult struct {
 	suggestedPath string
 }
 
-func (s *UploadService) reidentifyMedia(media *model.Media, newTmdbID int, mediaType string) (*reidentifyResult, error) {
+func (s *UploadService) reidentifyMedia(media *model.MediaWithUser, newTmdbID int, mediaType string) (*reidentifyResult, error) {
 	var season, episode int
 	if len(media.JsonData) > 0 {
 		var jd map[string]any
@@ -501,7 +501,7 @@ func (s *UploadService) reidentifyMedia(media *model.Media, newTmdbID int, media
 	}, nil
 }
 
-func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType string, oldTmdbID int) (*model.Media, error) {
+func (s *UploadService) UpdateTMDBID(mediaID uint, newTmdbID int, mediaType string, oldTmdbID int) (*model.MediaWithUser, error) {
 	media, err := repository.GetMediaByID(mediaID)
 	if err != nil {
 		return nil, fmt.Errorf("查询媒体记录失败: %w", err)
@@ -636,7 +636,7 @@ func extractYear(jsonData model.JSON) string {
 }
 
 func (s *UploadService) ResendNewMedia(userID uint, ids []uint, tmdbIDs []int, startTime, endTime string) (int, error) {
-	var records []model.Media
+	var records []model.MediaWithUser
 	var err error
 
 	switch {
