@@ -15,10 +15,13 @@ media-tracker
 web/node_modules/
 web/dist/
 web/.vite/
+web/tsconfig.tsbuildinfo
+cmd/server/web/dist/
 
 # IDE
 .idea/
 .vscode/
+.deveco/
 *.swp
 *.swo
 *~
