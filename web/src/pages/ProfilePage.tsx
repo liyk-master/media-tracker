@@ -30,6 +30,10 @@ export default function ProfilePage() {
   const [resetting, setResetting] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [playerToken, setPlayerToken] = useState('')
+  const [playerTokenSaved, setPlayerTokenSaved] = useState(false)
+  const [playerParentId, setPlayerParentId] = useState('')
+  const [playerParentIdSaved, setPlayerParentIdSaved] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -42,6 +46,11 @@ export default function ProfilePage() {
       setApiKey(k.api_key)
     }).catch(() => {
     }).finally(() => setLoading(false))
+
+    const savedToken = localStorage.getItem('player_auth_token') || ''
+    setPlayerToken(savedToken)
+    const savedParentId = localStorage.getItem('player_parent_id') || '/'
+    setPlayerParentId(savedParentId)
   }, [])
 
   function handleCopy() {
@@ -49,6 +58,18 @@ export default function ProfilePage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  function handleSavePlayerToken() {
+    localStorage.setItem('player_auth_token', playerToken)
+    setPlayerTokenSaved(true)
+    setTimeout(() => setPlayerTokenSaved(false), 2000)
+  }
+
+  function handleSavePlayerParentId() {
+    localStorage.setItem('player_parent_id', playerParentId)
+    setPlayerParentIdSaved(true)
+    setTimeout(() => setPlayerParentIdSaved(false), 2000)
   }
 
   async function handleResetKey() {
@@ -316,6 +337,75 @@ export default function ProfilePage() {
                 重置后旧 Key 将立即失效
               </span>
             </div>
+          </div>
+        </section>
+
+        <section style={{ marginTop: '32px' }}>
+          <h2 style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: '16px', color: 'var(--text-primary)', marginBottom: '16px', letterSpacing: '-0.01em' }}>
+            播放设置
+          </h2>
+          <div className="card" style={{ padding: '20px' }}>
+            <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Yun139 Auth Token（Base64 编码）
+            </label>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={playerToken}
+                onChange={(e) => setPlayerToken(e.target.value)}
+                placeholder="输入 auth_token"
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                }}
+              />
+              <button
+                className="btn-primary"
+                onClick={handleSavePlayerToken}
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                {playerTokenSaved ? '已保存' : '保存'}
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px', marginBottom: '16px' }}>
+              从 Yun139 网页端获取认证信息，格式为 Base64 编码的字符串
+            </p>
+
+            <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              秒传目标文件夹 ID
+            </label>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={playerParentId}
+                onChange={(e) => setPlayerParentId(e.target.value)}
+                placeholder="输入文件夹 ID，如 / 或具体文件夹ID"
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  fontSize: '14px',
+                }}
+              />
+              <button
+                className="btn-primary"
+                onClick={handleSavePlayerParentId}
+                style={{ padding: '8px 16px', fontSize: '13px' }}
+              >
+                {playerParentIdSaved ? '已保存' : '保存'}
+              </button>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
+              秒传文件的目标文件夹，默认为根目录 "/"
+            </p>
           </div>
         </section>
       </div>

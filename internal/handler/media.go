@@ -2,12 +2,16 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/liyk-master/media-tracker/internal/config"
 	"github.com/liyk-master/media-tracker/internal/model"
+	"github.com/liyk-master/media-tracker/internal/pkg/yun139"
 	"github.com/liyk-master/media-tracker/internal/repository"
 	"github.com/liyk-master/media-tracker/pkg/response"
 )
@@ -255,4 +259,90 @@ func (h *MediaHandler) Export(c *gin.Context) {
 			Params:    string(paramBytes),
 		})
 	}()
+}
+
+var playCache = yun139.NewCache(300)
+
+func (h *MediaHandler) GetPlayURL(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Methods", "GET, OPTIONS")
+	c.Header("Access-Control-Allow-Headers", "*")
+
+	if c.Request.Method == "OPTIONS" {
+		c.AbortWithStatus(http.StatusNoContent)
+		return
+	}
+
+	if !config.Conf.Player.Enabled {
+		response.Error(c, "播放功能未启用")
+		return
+	}
+
+	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+	if id == 0 {
+		response.Error(c, "无效的 ID")
+		return
+	}
+	m, err := repository.GetMediaByID(uint(id))
+	if err != nil {
+		response.Error(c, "查询失败: "+err.Error())
+		return
+	}
+	if m == nil {
+		response.Error(c, "媒体不存在")
+		return
+	}
+
+	authToken := c.GetHeader("X-Player-Token")
+	if authToken == "" {
+		authToken = c.Query("auth_token")
+	}
+	if authToken == "" {
+		response.Error(c, "缺少 auth_token")
+		return
+	}
+
+	cacheKey := fmt.Sprintf("%s:%s", authToken[:min(10, len(authToken))], m.Sha256)
+	if cachedURL, ok := playCache.Get(cacheKey); ok {
+		c.Redirect(http.StatusFound, cachedURL)
+		return
+	}
+
+	parentID := c.Query("parent_id")
+	if parentID == "" {
+		parentID = "/"
+	}
+
+	client, err := yun139.NewClient(authToken, parentID)
+	if err != nil {
+		response.Error(c, "auth_token 格式错误: "+err.Error())
+		return
+	}
+
+	filename := filepath.Base(m.FileName)
+
+	fileId, err := client.RapidUpload(m.Sha256, m.FileSize, filename)
+	if err != nil {
+		response.Error(c, "秒传失败: "+err.Error())
+		return
+	}
+
+	downloadURL, err := client.GetDownloadURL(fileId)
+	if err != nil {
+		response.Error(c, "获取下载链接失败: "+err.Error())
+		return
+	}
+
+	playCache.Set(cacheKey, downloadURL)
+
+	c.Header("Cache-Control", "max-age=300")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusFound, downloadURL)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

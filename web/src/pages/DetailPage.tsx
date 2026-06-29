@@ -1,19 +1,171 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useEffect, useState, useRef } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { api, type MediaItem } from '../api'
+import Artplayer from 'artplayer'
+
+function formatSize(bytes: number): string {
+  if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB'
+  return (bytes / 1048576).toFixed(2) + ' MB'
+}
 
 export default function DetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [media, setMedia] = useState<MediaItem | null>(null)
   const [loading, setLoading] = useState(true)
   const [showRaw, setShowRaw] = useState(false)
+  const [showPlayer, setShowPlayer] = useState(false)
+  const [playUrl, setPlayUrl] = useState('')
+  const playerRef = useRef<Artplayer | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!id) return
     setLoading(true)
     api.getMedia(Number(id)).then(setMedia).finally(() => setLoading(false))
   }, [id])
+
+  useEffect(() => {
+    if (showPlayer && containerRef.current && !playerRef.current && playUrl) {
+      console.log('=== 播放器初始化 ===')
+      console.log('容器:', containerRef.current)
+      console.log('播放 URL:', playUrl)
+      console.log('时间:', new Date().toISOString())
+      
+      const art = new Artplayer({
+        container: containerRef.current,
+        url: playUrl,
+        volume: 0.5,
+        autoplay: true,
+        pip: true,
+        autoSize: true,
+        autoMini: true,
+        screenshot: true,
+        setting: true,
+        loop: true,
+        flip: true,
+        playbackRate: true,
+        aspectRatio: true,
+        fullscreen: true,
+        fullscreenWeb: true,
+        subtitleOffset: true,
+        miniProgressBar: true,
+        mutex: true,
+        backdrop: true,
+        playsInline: true,
+        autoPlayback: true,
+        airplay: true,
+        theme: '#23ade5',
+        lang: navigator.language.toLowerCase(),
+        moreVideoAttr: {},
+      })
+
+      art.on('ready', () => {
+        console.log('=== 播放器就绪 ===')
+      })
+
+      art.on('video:loadedmetadata', () => {
+        console.log('=== 视频元数据加载完成 ===')
+        console.log('视频元素:', art.video)
+        console.log('视频 src:', art.video?.src)
+        console.log('视频 currentSrc:', art.video?.currentSrc)
+        console.log('视频 readyState:', art.video?.readyState)
+        console.log('视频 networkState:', art.video?.networkState)
+      })
+
+      art.on('video:canplay', () => {
+        console.log('=== 视频可以播放 ===')
+        console.log('视频时长:', art.duration)
+        console.log('视频宽度:', art.video?.videoWidth)
+        console.log('视频高度:', art.video?.videoHeight)
+      })
+
+      art.on('error', (error: any) => {
+        console.error('=== 播放器错误 ===')
+        console.error('错误对象:', error)
+        console.log('播放器实例:', art)
+      })
+
+      art.on('video:error', (error: any) => {
+        console.error('=== 视频加载错误 ===')
+        console.error('错误对象:', error)
+        console.log('视频元素:', art.video)
+        console.log('视频 src:', art.video?.src)
+        console.log('视频 currentSrc:', art.video?.currentSrc)
+        console.log('视频 readyState:', art.video?.readyState)
+        console.log('视频 networkState:', art.video?.networkState)
+        console.log('视频 error:', art.video?.error)
+        
+        if (art.video?.src) {
+          console.log('尝试手动 fetch:', art.video.src)
+          fetch(art.video.src, { method: 'HEAD' })
+            .then(r => {
+              console.log('Fetch 响应:', {
+                status: r.status,
+                statusText: r.statusText,
+                url: r.url,
+                headers: Object.fromEntries(r.headers.entries())
+              })
+            })
+            .catch(e => console.error('Fetch 错误:', e))
+        }
+      })
+
+      playerRef.current = art
+    }
+
+    return () => {
+      if (!showPlayer && playerRef.current) {
+        console.log('销毁播放器')
+        playerRef.current.destroy()
+        playerRef.current = null
+      }
+    }
+  }, [showPlayer, playUrl])
+
+  // 自动播放
+  const autoPlayedRef = useRef(false)
+  useEffect(() => {
+    if (media && searchParams.get('autoplay') === '1' && !autoPlayedRef.current) {
+      autoPlayedRef.current = true
+      handlePlay()
+    }
+  }, [media, searchParams])
+
+  function handlePlay() {
+    const token = localStorage.getItem('player_auth_token') || ''
+    if (!token) {
+      alert('请先在个人中心设置 Yun139 Auth Token')
+      return
+    }
+
+    if (!media) return
+
+    const parentId = localStorage.getItem('player_parent_id') || '/'
+    
+    // 开发环境直接连接后端，生产环境使用当前域名
+    const apiBaseUrl = import.meta.env.DEV 
+      ? 'http://localhost:8082'
+      : window.location.origin
+    
+    const url = `${apiBaseUrl}/api/media/${media.id}/play?auth_token=${encodeURIComponent(token)}&parent_id=${encodeURIComponent(parentId)}`
+
+    console.log('=== 播放请求 ===')
+    console.log('播放 URL:', url)
+    console.log('API Base URL:', apiBaseUrl)
+
+    setPlayUrl(url)
+    setShowPlayer(true)
+  }
+
+  function handleClosePlayer() {
+    if (playerRef.current) {
+      playerRef.current.destroy()
+      playerRef.current = null
+    }
+    setShowPlayer(false)
+  }
 
   if (loading) {
     return (
@@ -124,7 +276,7 @@ export default function DetailPage() {
                 </div>
                 <div>
                   <div style={{ color: 'var(--text-dim)', marginBottom: '2px' }}>文件大小</div>
-                  <div style={{ color: 'var(--text-muted)' }}>{(media.file_size / 1048576).toFixed(2)} MB</div>
+                  <div style={{ color: 'var(--text-muted)' }}>{formatSize(media.file_size)}</div>
                 </div>
                 <div>
                   <div style={{ color: 'var(--text-dim)', marginBottom: '2px' }}>云存储</div>
@@ -139,6 +291,14 @@ export default function DetailPage() {
                   <div style={{ color: 'var(--text-muted)' }}>{media.created_at?.slice(0, 19) || '—'}</div>
                 </div>
               </div>
+
+              <button
+                onClick={handlePlay}
+                className="btn-primary"
+                style={{ marginTop: '16px', padding: '8px 16px', fontSize: '13px' }}
+              >
+                ▶ 播放
+              </button>
             </div>
           </div>
 
@@ -169,6 +329,53 @@ export default function DetailPage() {
           )}
         </div>
       </div>
+
+      {showPlayer && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            width: '90%',
+            maxWidth: '1200px',
+            background: 'var(--bg-primary)',
+            borderRadius: '8px',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              padding: '8px',
+              background: 'var(--bg-surface)',
+            }}>
+              <button
+                onClick={handleClosePlayer}
+                className="btn-ghost"
+                style={{ fontSize: '13px', padding: '5px 12px' }}
+              >
+                关闭
+              </button>
+            </div>
+            <div
+              ref={containerRef}
+              className="artplayer-app"
+              style={{
+                width: '100%',
+                height: '500px',
+                position: 'relative',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

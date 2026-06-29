@@ -122,6 +122,7 @@ func main() {
 		}
 
 		api.GET("/tmdb/poster/:type/:id", tmdbHandler.Poster)
+		api.GET("/media/:id/play", mediaHandler.GetPlayURL)
 
 
 		admin := api.Group("/admin")

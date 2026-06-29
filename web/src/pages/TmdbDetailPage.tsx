@@ -21,6 +21,11 @@ function versionLabel(item: MediaItem): string {
   return item.json_data?.suggested_name || item.file_name
 }
 
+function formatSize(bytes: number): string {
+  if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB'
+  return (bytes / 1048576).toFixed(1) + ' MB'
+}
+
 export default function TmdbDetailPage() {
   const { tmdbId } = useParams()
   const navigate = useNavigate()
@@ -32,6 +37,8 @@ export default function TmdbDetailPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [episodePage, setEpisodePage] = useState(0)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
+  const [sortField, setSortField] = useState<'file_size' | 'created_at'>('file_size')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   const fetchPage = useCallback(async (page: number) => {
     const res = await api.listMedia({ tmdb_id: Number(tmdbId), page, page_size: API_PAGE_SIZE, group_by: '' })
@@ -47,6 +54,8 @@ export default function TmdbDetailPage() {
     setEpisodePage(0)
     setExpanded(new Set())
     setSelectedSeason(null)
+    setSortField('file_size')
+    setSortOrder('desc')
     setLoadingMore(false)
     fetchPage(1).then((res) => {
       setItems(res.items)
@@ -72,11 +81,26 @@ export default function TmdbDetailPage() {
   const first = items[0]
   const isMovie = first?.media_type === 'movie'
 
+  function sortItems(list: MediaItem[]): MediaItem[] {
+    return [...list].sort((a, b) => {
+      let cmp = 0
+      if (sortField === 'file_size') {
+        cmp = a.file_size - b.file_size
+      } else {
+        cmp = (a.created_at || '').localeCompare(b.created_at || '')
+      }
+      return sortOrder === 'desc' ? -cmp : cmp
+    })
+  }
+
   const groups = items.reduce<Record<string, MediaItem[]>>((acc, m) => {
     const key = isMovie ? '__movie__' : episodeLabel(m)
     ;(acc[key] ??= []).push(m)
     return acc
   }, {})
+  for (const key of Object.keys(groups)) {
+    groups[key] = sortItems(groups[key])
+  }
 
   const seasons = isMovie ? [] : [...new Set(items.map(m => m.json_data?.season).filter((s): s is number => s != null && s > 0))].sort((a, b) => a - b)
 
@@ -207,14 +231,20 @@ export default function TmdbDetailPage() {
 
             <div className="card">
               {isMovie ? (
-                <table style={{ width: '100%', fontSize: '12px' }}>
+                  <table style={{ width: '100%', fontSize: '12px' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
                       <th style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 500, width: '36%' }}>版本</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>大小</th>
+                      <th onClick={() => { if (sortField === 'file_size') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('file_size'); setSortOrder('desc') } }}
+                        style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                        大小{sortField === 'file_size' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+                      </th>
                       <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>云端</th>
                       <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>上传者</th>
-                      <th style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>时间</th>
+                      <th onClick={() => { if (sortField === 'created_at') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('created_at'); setSortOrder('desc') } }}
+                        style={{ padding: '10px 16px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                        时间{sortField === 'created_at' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+                      </th>
                       <th style={{ padding: '10px 16px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>操作</th>
                     </tr>
                   </thead>
@@ -232,7 +262,7 @@ export default function TmdbDetailPage() {
                           {versionLabel(m)}
                         </td>
                         <td style={{ padding: '8px 16px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                          {(m.file_size / 1048576).toFixed(1)} MB
+                          {formatSize(m.file_size)}
                         </td>
                         <td style={{ padding: '8px 16px', color: 'var(--text-muted)', textAlign: 'center' }}>
                           {m.cloud_type || '—'}
@@ -244,9 +274,9 @@ export default function TmdbDetailPage() {
                           {m.created_at?.slice(0, 10)}
                         </td>
                         <td style={{ padding: '8px 16px', textAlign: 'center' }}>
-                          <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); api.exportMedia({ ids: [m.id] }) }}
+                          <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); navigate('/media/' + m.id + '?autoplay=1') }}
                             style={{ fontSize: '10px', padding: '2px 8px' }}>
-                            导出
+                            ▶ 播放
                           </button>
                         </td>
                       </tr>
@@ -299,10 +329,16 @@ export default function TmdbDetailPage() {
                             <thead>
                               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
                                 <th style={{ padding: '8px 14px', textAlign: 'left', color: 'var(--text-dim)', fontWeight: 500, width: '36%' }}>版本</th>
-                                <th style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>大小</th>
+                                <th onClick={() => { if (sortField === 'file_size') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('file_size'); setSortOrder('desc') } }}
+                                  style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                                  大小{sortField === 'file_size' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+                                </th>
                                 <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>云端</th>
                                 <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>上传者</th>
-                                <th style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500 }}>时间</th>
+                                <th onClick={() => { if (sortField === 'created_at') setSortOrder(o => o === 'desc' ? 'asc' : 'desc'); else { setSortField('created_at'); setSortOrder('desc') } }}
+                                  style={{ padding: '8px 14px', textAlign: 'right', color: 'var(--text-dim)', fontWeight: 500, cursor: 'pointer', userSelect: 'none' }}>
+                                  时间{sortField === 'created_at' ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : ''}
+                                </th>
                                 <th style={{ padding: '8px 14px', textAlign: 'center', color: 'var(--text-dim)', fontWeight: 500 }}>操作</th>
                               </tr>
                             </thead>
@@ -320,7 +356,7 @@ export default function TmdbDetailPage() {
                                     {versionLabel(m)}
                                   </td>
                                   <td style={{ padding: '8px 14px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                                    {(m.file_size / 1048576).toFixed(1)} MB
+                                    {formatSize(m.file_size)}
                                   </td>
                                   <td style={{ padding: '8px 14px', color: 'var(--text-muted)', textAlign: 'center' }}>
                                     {m.cloud_type || '—'}
@@ -332,9 +368,9 @@ export default function TmdbDetailPage() {
                                     {m.created_at?.slice(0, 10)}
                                   </td>
                                   <td style={{ padding: '8px 14px', textAlign: 'center' }}>
-                                    <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); api.exportMedia({ ids: [m.id] }) }}
+                                    <button className="btn-ghost" onClick={(e) => { e.stopPropagation(); navigate('/media/' + m.id + '?autoplay=1') }}
                                       style={{ fontSize: '10px', padding: '2px 8px' }}>
-                                      导出
+                                      ▶ 播放
                                     </button>
                                   </td>
                                 </tr>

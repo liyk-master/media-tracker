@@ -64,6 +64,11 @@ type TMDBConfig struct {
 	PosterBase string `yaml:"poster_base"`
 }
 
+type PlayerConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	CacheTTL int  `yaml:"cache_ttl"`
+}
+
 type Config struct {
 	Database   DatabaseConfig   `yaml:"database"`
 	JWT        JWTConfig        `yaml:"jwt"`
@@ -71,6 +76,7 @@ type Config struct {
 	WS         WSConfig         `yaml:"ws"`
 	Invitation InvitationConfig `yaml:"invitation"`
 	TMDB       TMDBConfig       `yaml:"tmdb"`
+	Player     PlayerConfig     `yaml:"player"`
 	Server     struct {
 		Port int    `yaml:"port"`
 		Mode string `yaml:"mode"`
